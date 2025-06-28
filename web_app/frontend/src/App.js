@@ -112,14 +112,36 @@ function App() {
           
         case 'complete':
           const finalData = latestMessage.data;
-          setPbilData(prev => ({ 
-            ...prev, 
-            isRunning: false,
-            timeElapsed: finalData.time_elapsed || 0,
-            currentFitness: finalData.fitness || prev.currentFitness,
-            maxFitness: finalData.max_fitness || prev.maxFitness,
-            bestSolution: finalData.best_solution || prev.bestSolution
-          }));
+          setPbilData(prev => {
+            const finalFitness = finalData.fitness || prev.currentFitness;
+            const finalMaxFitness = finalData.max_fitness || prev.maxFitness;
+            const finalGeneration = finalData.total_generations || prev.currentGeneration;
+            
+            // Add final result to fitness history if it's different from the last entry
+            const updatedHistory = [...prev.fitnessHistory];
+            const lastEntry = updatedHistory[updatedHistory.length - 1];
+            
+            // Only add if we have final data and it's different from the last entry
+            if (finalFitness && finalMaxFitness && 
+                (!lastEntry || lastEntry.fitness !== finalFitness || lastEntry.generation !== finalGeneration)) {
+              updatedHistory.push({
+                generation: finalGeneration,
+                fitness: finalFitness,
+                maxFitness: finalMaxFitness
+              });
+            }
+            
+            return {
+              ...prev, 
+              isRunning: false,
+              timeElapsed: finalData.time_elapsed || 0,
+              currentFitness: finalFitness,
+              maxFitness: finalMaxFitness,
+              currentGeneration: finalGeneration,
+              bestSolution: finalData.best_solution || prev.bestSolution,
+              fitnessHistory: updatedHistory
+            };
+          });
           setNotification({
             open: true,
             message: `PBIL completed! Final fitness: ${finalData.fitness}/${finalData.max_fitness}`,
@@ -161,12 +183,16 @@ function App() {
       return;
     }
 
-    // Clear previous data
+    // Clear previous data completely
     setPbilData(prev => ({
       ...prev,
       fitnessHistory: [],
       probabilityHistory: [],
+      bestSolution: [],
       currentGeneration: 0,
+      currentFitness: 0,
+      maxFitness: 0,
+      timeElapsed: 0,
     }));
     clearMessages();
 
