@@ -10,11 +10,13 @@ import {
   Select,
   MenuItem,
   Tooltip,
-  IconButton
+  IconButton,
+  Button,
+  Divider
 } from '@mui/material';
-import { Info } from '@mui/icons-material';
+import { Info, PlayArrow, Stop } from '@mui/icons-material';
 
-const ParameterPanel = ({ config, onChange, disabled }) => {
+const ParameterPanel = ({ config, onChange, disabled, onStart, onStop, isRunning, isConnected }) => {
   const handleChange = (field) => (event) => {
     const value = event.target.value;
     onChange({
@@ -66,6 +68,43 @@ const ParameterPanel = ({ config, onChange, disabled }) => {
 
   return (
     <Box>
+      {/* Start/Stop Controls */}
+      <Box sx={{ mb: 3, textAlign: 'center' }}>
+        <Button
+          variant="contained"
+          size="large"
+          startIcon={isRunning ? <Stop /> : <PlayArrow />}
+          onClick={isRunning ? onStop : onStart}
+          disabled={!isConnected}
+          color={isRunning ? "error" : "primary"}
+          sx={{ 
+            minWidth: 120,
+            mb: 2,
+            fontSize: '1.1rem',
+            boxShadow: 3,
+            '&:hover': {
+              boxShadow: 6,
+            }
+          }}
+        >
+          {isRunning ? 'Stop PBIL' : 'Start PBIL'}
+        </Button>
+        
+        {!isConnected && (
+          <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+            ⚠️ Not connected to server
+          </Typography>
+        )}
+        
+        {isRunning && (
+          <Typography variant="body2" color="success.main" sx={{ mt: 1 }}>
+            🔄 Algorithm running...
+          </Typography>
+        )}
+      </Box>
+
+      <Divider sx={{ mb: 3 }} />
+
       {/* CNF File Selection */}
       <FormControl fullWidth sx={{ mb: 3 }}>
         <InputLabel>CNF File</InputLabel>

@@ -232,6 +232,10 @@ function App() {
                   config={pbilConfig}
                   onChange={handleConfigChange}
                   disabled={pbilData.isRunning}
+                  onStart={handleStartPBIL}
+                  onStop={handleStopPBIL}
+                  isRunning={pbilData.isRunning}
+                  isConnected={isConnected}
                 />
               </Paper>
             </Grid>

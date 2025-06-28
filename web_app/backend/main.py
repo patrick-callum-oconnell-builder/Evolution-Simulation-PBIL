@@ -322,14 +322,6 @@ async def stop_pbil():
     return {"success": True, "message": "PBIL stopped"}
 
 
-@app.websocket("/ws/test")
-async def websocket_test(websocket: WebSocket):
-    """Simple test WebSocket endpoint."""
-    await websocket.accept()
-    await websocket.send_text("Hello from test WebSocket!")
-    await websocket.close()
-
-
 @app.websocket("/ws/pbil")
 async def websocket_pbil(websocket: WebSocket):
     """WebSocket endpoint for real-time PBIL streaming."""
