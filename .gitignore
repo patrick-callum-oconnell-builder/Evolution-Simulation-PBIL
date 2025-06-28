@@ -308,4 +308,4 @@ dist
 
 # Temporary folders
 tmp/
-temp/ 
+temp/ benchmark_problems/cnf-files-download/
