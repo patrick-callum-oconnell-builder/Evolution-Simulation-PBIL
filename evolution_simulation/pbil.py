@@ -1,252 +1,308 @@
 """
-PBIL (Population Based Incremental Learning) Module
+Simple Python wrapper for the existing PBIL C implementation.
 
-Main PBIL algorithm implementation with C backend integration for performance.
+This wrapper calls the original pbil_c.c main function via subprocess,
+providing a clean Python interface while preserving the original C implementation.
 """
 
-import numpy as np
-from typing import Tuple, Optional, List
-from .c_interface import CInterface
-from .maxsat_problem import MAXSATProblem
+import subprocess
+import os
+import sys
+import re
+from typing import Dict, Any, Optional, List, Tuple
+import tempfile
 
 
-class PBIL:
+class PBILWrapper:
     """
-    Population Based Incremental Learning algorithm for solving MAXSAT problems.
-    Uses C backend for performance-critical operations with Python fallback.
+    A simple but robust wrapper around the existing PBIL C implementation.
+    
+    This class provides a Python interface to the original C code without
+    modifying the underlying implementation.
     """
     
-    def __init__(self, 
-                 problem: MAXSATProblem,
-                 pop_size: int = 100,
-                 learning_rate: float = 0.1,
-                 negative_learning_rate: float = 0.075,
-                 mutation_probability: float = 0.02,
-                 mutation_shift: float = 0.05):
+    def __init__(self, executable_path: Optional[str] = None):
         """
-        Initialize PBIL algorithm.
+        Initialize the PBIL wrapper.
         
         Args:
-            problem: MAXSAT problem to solve
-            pop_size: Population size
-            learning_rate: Learning rate for updating probability vector
-            negative_learning_rate: Negative learning rate
-            mutation_probability: Probability of mutation for each bit
-            mutation_shift: Amount of mutation shift
+            executable_path: Path to the compiled PBIL executable. 
+                           If None, will try to find or compile it.
         """
-        self.problem = problem
-        self.pop_size = pop_size
-        self.learning_rate = learning_rate
-        self.negative_learning_rate = negative_learning_rate
-        self.mutation_probability = mutation_probability
-        self.mutation_shift = mutation_shift
-        
-        # Initialize probability vector with 0.5 for all bits
-        self.prob_vector = np.full(problem.n_variables, 0.5)
-        
-        # Track best solution found
-        self.best_solution: Optional[np.ndarray] = None
-        self.best_fitness: int = 0
-        self.best_generation: int = 0
-        
-        # Statistics
-        self.generation = 0
-        self.fitness_history: List[Tuple[int, int, float]] = []  # (generation, best_fitness, avg_fitness)
-        
-        print(f"PBIL initialized for {problem.n_variables} variables, {problem.n_clauses} clauses")
-        if CInterface.is_available():
-            print("✓ Using high-performance C backend")
-        else:
-            print("⚠ Using Python fallback (install with 'pip install -e .' for C backend)")
+        self.executable_path = executable_path
+        self._ensure_executable()
     
-    def run(self, max_generations: int = 1000, target_fitness: Optional[int] = None, verbose: bool = True) -> Tuple[np.ndarray, int]:
-        """
-        Run the PBIL algorithm.
+    def _ensure_executable(self):
+        """Ensure the C executable exists and is compiled."""
+        if self.executable_path and os.path.exists(self.executable_path):
+            return
+            
+        # Try common locations
+        possible_paths = [
+            './pbil_c',
+            'pbil_c', 
+            './c_src/pbil_c',
+            'c_src/pbil_c'
+        ]
         
-        Args:
-            max_generations: Maximum number of generations
-            target_fitness: Stop if this fitness is reached (default: all clauses satisfied)
-            verbose: Print progress information
-            
-        Returns:
-            Tuple of (best_solution, best_fitness)
-        """
-        if target_fitness is None:
-            target_fitness = self.problem.n_clauses  # All clauses satisfied
-        
-        print(f"Running PBIL for up to {max_generations} generations...")
-        print(f"Target fitness: {target_fitness}/{self.problem.n_clauses} clauses")
-        
-        for gen in range(max_generations):
-            self.generation = gen
-            
-            # Generate population from probability vector
-            population = CInterface.generate_population(self.prob_vector, self.pop_size)
-            
-            # Evaluate fitness for all individuals
-            fitnesses = self._evaluate_population(population)
-            
-            # Find best and worst individuals
-            best_idx = np.argmax(fitnesses)
-            worst_idx = np.argmin(fitnesses)
-            
-            best_individual = population[best_idx]
-            worst_individual = population[worst_idx]
-            best_gen_fitness = fitnesses[best_idx]
-            
-            # Update global best if we found a better solution
-            if best_gen_fitness > self.best_fitness:
-                self.best_solution = best_individual.copy()
-                self.best_fitness = best_gen_fitness
-                self.best_generation = gen
-            
-            # Record statistics
-            avg_fitness = np.mean(fitnesses)
-            self.fitness_history.append((gen, self.best_fitness, avg_fitness))
-            
-            # Print progress
-            if verbose and (gen % 100 == 0 or best_gen_fitness >= target_fitness):
-                print(f"Generation {gen}: Best={self.best_fitness}/{self.problem.n_clauses}, "
-                      f"Current={best_gen_fitness}, Avg={avg_fitness:.2f}")
-            
-            # Check termination condition
-            if self.best_fitness >= target_fitness:
-                print(f"✓ Target fitness reached at generation {gen}!")
-                break
-            
-            # Update probability vector (except on first generation)
-            if gen > 0:
-                self.prob_vector = CInterface.update_probability_vector(
-                    self.prob_vector, best_individual, worst_individual,
-                    self.learning_rate, self.negative_learning_rate
-                )
-                
-                # Apply mutation
-                self.prob_vector = CInterface.mutate_probability_vector(
-                    self.prob_vector, self.mutation_probability, self.mutation_shift
-                )
-                
-                # Ensure probabilities stay in valid range
-                self.prob_vector = np.clip(self.prob_vector, 0.0, 1.0)
-        
-        print(f"PBIL completed after {self.generation + 1} generations")
-        print(f"Best solution found at generation {self.best_generation}: {self.best_fitness}/{self.problem.n_clauses} clauses satisfied")
-        
-        return self.best_solution, self.best_fitness
-    
-    def _evaluate_population(self, population: np.ndarray) -> np.ndarray:
-        """
-        Evaluate fitness for all individuals in the population.
-        
-        Args:
-            population: 2D array of individuals
-            
-        Returns:
-            Array of fitness values
-        """
-        fitnesses = np.zeros(len(population), dtype=int)
-        
-        for i, individual in enumerate(population):
-            fitnesses[i] = self.problem.get_fitness(individual)
-        
-        return fitnesses
-    
-    def get_statistics(self) -> dict:
-        """Get current algorithm statistics."""
-        return {
-            'generation': self.generation,
-            'best_fitness': self.best_fitness,
-            'best_generation': self.best_generation,
-            'target_fitness': self.problem.n_clauses,
-            'success_rate': self.best_fitness / self.problem.n_clauses if self.problem.n_clauses > 0 else 0,
-            'prob_vector_entropy': self._calculate_entropy(),
-            'prob_vector_mean': np.mean(self.prob_vector),
-            'prob_vector_std': np.std(self.prob_vector)
-        }
-    
-    def _calculate_entropy(self) -> float:
-        """Calculate entropy of the probability vector (measure of diversity)."""
-        # Avoid log(0) by adding small epsilon
-        epsilon = 1e-10
-        p = np.clip(self.prob_vector, epsilon, 1 - epsilon)
-        entropy = -np.sum(p * np.log2(p) + (1 - p) * np.log2(1 - p))
-        return entropy / len(p)  # Normalize by vector length
-    
-    def visualize_progress(self):
-        """Visualize the algorithm's progress."""
-        try:
-            import matplotlib.pyplot as plt
-            
-            if not self.fitness_history:
-                print("No fitness history to visualize")
+        for path in possible_paths:
+            if os.path.exists(path):
+                self.executable_path = path
                 return
-            
-            generations, best_fitnesses, avg_fitnesses = zip(*self.fitness_history)
-            
-            plt.figure(figsize=(12, 8))
-            
-            # Plot fitness progress
-            plt.subplot(2, 2, 1)
-            plt.plot(generations, best_fitnesses, 'b-', label='Best Fitness', linewidth=2)
-            plt.plot(generations, avg_fitnesses, 'r--', label='Average Fitness', alpha=0.7)
-            plt.axhline(y=self.problem.n_clauses, color='g', linestyle=':', label='Target Fitness')
-            plt.xlabel('Generation')
-            plt.ylabel('Fitness (Clauses Satisfied)')
-            plt.title('PBIL Fitness Progress')
-            plt.legend()
-            plt.grid(True, alpha=0.3)
-            
-            # Plot probability vector histogram
-            plt.subplot(2, 2, 2)
-            plt.hist(self.prob_vector, bins=20, alpha=0.7, edgecolor='black')
-            plt.xlabel('Probability Value')
-            plt.ylabel('Frequency')
-            plt.title('Probability Vector Distribution')
-            plt.grid(True, alpha=0.3)
-            
-            # Plot probability vector over time (if we have enough data)
-            if len(self.fitness_history) > 10:
-                plt.subplot(2, 1, 2)
-                # Sample some probability values to show evolution
-                sample_indices = np.linspace(0, len(self.prob_vector) - 1, min(10, len(self.prob_vector)), dtype=int)
-                for i in sample_indices:
-                    # This would require storing prob_vector history - simplified for now
-                    plt.axhline(y=self.prob_vector[i], alpha=0.5, label=f'Var {i}' if i < 5 else '')
-                plt.xlabel('Variable Index')
-                plt.ylabel('Probability')
-                plt.title('Current Probability Vector')
-                plt.grid(True, alpha=0.3)
-                if len(sample_indices) <= 5:
-                    plt.legend()
-            
-            plt.tight_layout()
-            plt.show()
-            
-        except ImportError:
-            print("Matplotlib not available. Install with: pip install matplotlib")
-    
-    def get_solution_string(self) -> str:
-        """Get the best solution as a readable string."""
-        if self.best_solution is None:
-            return "No solution found yet"
         
-        return ''.join(map(str, self.best_solution.astype(int)))
+        # Try to compile it
+        self._compile_executable()
     
-    def verify_solution(self) -> Tuple[bool, List[int]]:
+    def _compile_executable(self):
+        """Compile the C executable from source."""
+        c_files = []
+        if os.path.exists('c_src'):
+            c_files = [f'c_src/{f}' for f in os.listdir('c_src') if f.endswith('.c')]
+        
+        if not c_files:
+            raise RuntimeError("No C source files found. Please ensure c_src/ directory exists with .c files")
+        
+        # Compile command
+        output_name = './pbil_c'
+        compile_cmd = ['gcc', '-o', output_name] + c_files + ['-lm']
+        
+        try:
+            result = subprocess.run(compile_cmd, capture_output=True, text=True, check=True)
+            self.executable_path = output_name
+            print(f"Successfully compiled PBIL executable: {output_name}")
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Failed to compile C executable: {e.stderr}")
+    
+    def run(self, 
+            pop_size: int = 100,
+            learning_rate: float = 0.1,
+            negative_learning_rate: float = 0.075,
+            mutation_probability: float = 0.02,
+            mutation_shift: float = 0.05,
+            max_iterations: int = 1000,
+            cnf_file: str = None,
+            print_generations: bool = False) -> Dict[str, Any]:
         """
-        Verify the best solution and return unsatisfied clauses.
+        Run the PBIL algorithm on a MAXSAT problem.
         
+        Args:
+            pop_size: Number of vectors generated by probability vector for each population
+            learning_rate: Learning rate for updating probability vector
+            negative_learning_rate: Negative learning rate (for worst individuals)
+            mutation_probability: Probability of mutation for each bit
+            mutation_shift: Amount by which mutation alters a bit
+            max_iterations: Maximum number of iterations/generations
+            cnf_file: Path to the .cnf file containing the MAXSAT problem
+            print_generations: Whether to print generation-by-generation progress
+            
         Returns:
-            Tuple of (is_valid, list_of_unsatisfied_clause_indices)
+            Dictionary containing results including best solution, fitness, etc.
         """
-        if self.best_solution is None:
-            return False, []
+        if not cnf_file:
+            raise ValueError("cnf_file is required")
         
-        return self.problem.verify_solution(self.best_solution)
+        if not os.path.exists(cnf_file):
+            raise FileNotFoundError(f"CNF file not found: {cnf_file}")
+        
+        # Prepare arguments for the C program
+        args = [
+            self.executable_path,
+            str(pop_size),
+            str(learning_rate),
+            str(negative_learning_rate), 
+            str(mutation_probability),
+            str(mutation_shift),
+            str(max_iterations),
+            cnf_file,
+            str(1 if print_generations else 0)
+        ]
+        
+        try:
+            # Run the C program and capture output
+            result = subprocess.run(args, capture_output=True, text=True, check=True)
+            
+            # Parse the output to extract results
+            return self._parse_output(result.stdout, cnf_file)
+            
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"PBIL execution failed: {e.stderr}")
+        except Exception as e:
+            raise RuntimeError(f"Error running PBIL: {str(e)}")
     
-    def __repr__(self) -> str:
-        """String representation of the PBIL instance."""
-        stats = self.get_statistics()
-        return (f"PBIL(generation={stats['generation']}, "
-                f"best_fitness={stats['best_fitness']}/{stats['target_fitness']}, "
-                f"success_rate={stats['success_rate']:.2%})") 
+    def _parse_output(self, output: str, cnf_file: str) -> Dict[str, Any]:
+        """
+        Parse the output from the C program to extract results.
+        
+        Args:
+            output: Raw stdout from the C program
+            cnf_file: Original CNF file path
+            
+        Returns:
+            Parsed results dictionary
+        """
+        results = {
+            'cnf_file': cnf_file,
+            'output': output,
+            'success': False
+        }
+        
+        try:
+            # Extract time elapsed
+            time_match = re.search(r'Time elapsed: ([\d.]+) seconds', output)
+            if time_match:
+                results['time_elapsed'] = float(time_match.group(1))
+            
+            # Extract problem info
+            problem_match = re.search(r'Results for problem .* \((\d+) variables, (\d+) clauses\)', output)
+            if problem_match:
+                results['n_variables'] = int(problem_match.group(1))
+                results['n_clauses'] = int(problem_match.group(2))
+            
+            # Extract total generations
+            gen_match = re.search(r'Total generations created: (\d+)', output)
+            if gen_match:
+                results['total_generations'] = int(gen_match.group(1))
+            
+            # Extract best solution
+            solution_match = re.search(r'Best candidate solution found: <([^>]+)>', output)
+            if solution_match:
+                solution_str = solution_match.group(1).strip()
+                results['best_solution'] = [int(x) for x in solution_str.split()]
+            
+            # Extract generation where best was found
+            best_gen_match = re.search(r'at generation (\d+)', output)
+            if best_gen_match:
+                results['best_found_at_generation'] = int(best_gen_match.group(1))
+            
+            # Extract fitness
+            fitness_match = re.search(r'satisfied (\d+) of (\d+) clauses \(([\d.]+)% fit\)', output)
+            if fitness_match:
+                results['fitness'] = int(fitness_match.group(1))
+                results['max_fitness'] = int(fitness_match.group(2))
+                results['fitness_percentage'] = float(fitness_match.group(3))
+                results['success'] = results['fitness'] == results['max_fitness']
+            
+            # Check if optimal solution was found
+            if 'Reached max fitness w/ candidate solution!' in output:
+                results['optimal_found'] = True
+            else:
+                results['optimal_found'] = False
+                
+        except Exception as e:
+            print(f"Warning: Error parsing output: {e}")
+            # Still return what we have
+            
+        return results
+    
+    def run_multiple(self, cnf_files: List[str], **kwargs) -> List[Dict[str, Any]]:
+        """
+        Run PBIL on multiple CNF files with the same parameters.
+        
+        Args:
+            cnf_files: List of CNF file paths
+            **kwargs: Parameters passed to run()
+            
+        Returns:
+            List of result dictionaries
+        """
+        results = []
+        for cnf_file in cnf_files:
+            try:
+                result = self.run(cnf_file=cnf_file, **kwargs)
+                results.append(result)
+            except Exception as e:
+                results.append({
+                    'cnf_file': cnf_file,
+                    'error': str(e),
+                    'success': False
+                })
+        return results
+    
+    def print_results(self, results: Dict[str, Any]):
+        """Pretty print the results from a PBIL run."""
+        if not results.get('success') and 'error' in results:
+            print(f"❌ Error: {results['error']}")
+            return
+            
+        print(f"\n📁 Problem: {os.path.basename(results['cnf_file'])}")
+        if 'n_variables' in results and 'n_clauses' in results:
+            print(f"📊 Size: {results['n_variables']} variables, {results['n_clauses']} clauses")
+        
+        if 'time_elapsed' in results:
+            print(f"⏱️  Time: {results['time_elapsed']:.2f} seconds")
+        
+        if 'total_generations' in results:
+            print(f"🔄 Generations: {results['total_generations']}")
+        
+        if 'fitness' in results and 'max_fitness' in results:
+            print(f"🎯 Fitness: {results['fitness']}/{results['max_fitness']} ({results.get('fitness_percentage', 0):.2f}%)")
+        
+        if results.get('optimal_found'):
+            print("✅ Optimal solution found!")
+        elif results.get('success'):
+            print("✅ Maximum fitness reached!")
+        else:
+            print("⚠️  Did not reach optimal solution")
+        
+        if 'best_solution' in results:
+            solution = results['best_solution']
+            if len(solution) <= 20:
+                print(f"💡 Solution: {solution}")
+            else:
+                print(f"💡 Solution: {solution[:10]}...{solution[-10:]} (showing first/last 10)")
+        
+        if 'best_found_at_generation' in results:
+            print(f"📈 Best found at generation: {results['best_found_at_generation']}")
+
+
+# Convenience function for simple usage
+def run_pbil(cnf_file: str, **kwargs) -> Dict[str, Any]:
+    """
+    Convenience function to run PBIL with default parameters.
+    
+    Args:
+        cnf_file: Path to CNF file
+        **kwargs: Additional parameters passed to PBILWrapper.run()
+        
+    Returns:
+        Results dictionary
+    """
+    wrapper = PBILWrapper()
+    return wrapper.run(cnf_file=cnf_file, **kwargs)
+
+
+if __name__ == "__main__":
+    # Simple command line interface
+    if len(sys.argv) < 2:
+        print("Usage: python pbil.py <cnf_file> [args...]")
+        print("\nExample:")
+        print("  python pbil.py problem.cnf")
+        print("  python pbil.py problem.cnf --pop-size 200 --max-iterations 2000")
+        sys.exit(1)
+    
+    cnf_file = sys.argv[1]
+    
+    # Simple argument parsing
+    kwargs = {}
+    args = sys.argv[2:]
+    i = 0
+    while i < len(args):
+        if args[i] == '--pop-size' and i + 1 < len(args):
+            kwargs['pop_size'] = int(args[i + 1])
+            i += 2
+        elif args[i] == '--learning-rate' and i + 1 < len(args):
+            kwargs['learning_rate'] = float(args[i + 1])
+            i += 2
+        elif args[i] == '--max-iterations' and i + 1 < len(args):
+            kwargs['max_iterations'] = int(args[i + 1])
+            i += 2
+        elif args[i] == '--print-generations':
+            kwargs['print_generations'] = True
+            i += 1
+        else:
+            i += 1
+    
+    # Run PBIL
+    wrapper = PBILWrapper()
+    results = wrapper.run(cnf_file=cnf_file, **kwargs)
+    wrapper.print_results(results) 

@@ -17,7 +17,7 @@
 #include"datatypes.h"
 #include "dependencies.h"
 
-void main(int argc, char**argv) {
+int main(int argc, char**argv) {
 
   //how often we want print statements (may add command-line access to this variable later):
   int epoch = 100;
@@ -68,7 +68,7 @@ void main(int argc, char**argv) {
     printf("(8) print_generations, int, 1 if yes, 0 if no\n");
     printf("\n");
 
-    return;
+    return 1;
   }
 
   char *ptr; //for use in strtod
@@ -212,15 +212,15 @@ void main(int argc, char**argv) {
 
   //free memory
   free(prob_vector);
-  free(best_vector);
+  //free(best_vector); //can't free this because it points to current_population element
   free(best_global_vector);
-  //free(best_vector) //can't free this because we're returning it
-  free(worst_vector);
+  //free(worst_vector); //can't free this because it points to current_population element
   for (i = 0; i < pop_size; i++) {
     free(current_population[i]);
   }
   free(current_population);
+  free_problem(maxsat_problem);
 
-  return;
+  return 0;
  
 }

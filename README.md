@@ -1,147 +1,162 @@
-# PBIL MAXSAT Solver with C Backend
+# PBIL Python Wrapper
 
-A high-performance Python implementation of Population Based Incremental Learning (PBIL) for solving MAXSAT problems, using CFFI for C integration.
+A Python wrapper around a high-performance C implementation of **Population Based Incremental Learning (PBIL)** for solving MAXSAT problems.
 
-Based on your original C implementation: [Population-Based-Incremental-Learning](https://github.com/patrick-callum-oconnell-builder/Population-Based-Incremental-Learning.git)
+## About
+
+This project provides a clean Python interface to an existing, optimized C implementation of the PBIL algorithm. The wrapper maintains the full performance of the original C code while offering modern Python conveniences for parameter tuning, result analysis, and integration into larger systems.
+
+### Key Features
+
+- **🚀 High Performance**: Direct calls to optimized C implementation
+- **🐍 Python Friendly**: Clean, intuitive Python API
+- **🔧 Auto-compilation**: Automatically compiles C source when needed
+- **📊 Rich Output**: Structured results with detailed statistics
+- **🎯 Robust**: Comprehensive error handling and memory management
+- **📱 CLI Support**: Command-line interface for quick experimentation
 
 ## What is PBIL?
 
-Population Based Incremental Learning (PBIL) is an evolutionary algorithm that maintains a probability vector instead of an explicit population. It's particularly effective for:
+Population Based Incremental Learning (PBIL) is an evolutionary algorithm that combines concepts from genetic algorithms and competitive learning. Instead of maintaining a population of individuals, PBIL maintains a probability vector that represents the distribution of good solutions. This approach is particularly effective for discrete optimization problems like MAXSAT.
 
-- **MAXSAT problems** - Finding variable assignments that satisfy the maximum number of clauses
-- **Binary optimization** - Problems with binary decision variables  
-- **Large search spaces** - Efficient exploration through probability-guided sampling
+### Algorithm Overview
 
-## Project Structure
+1. **Initialization**: Start with a probability vector (typically all 0.5)
+2. **Generation**: Sample individuals from the probability vector
+3. **Selection**: Identify best and worst individuals
+4. **Learning**: Update probability vector toward good solutions, away from bad ones
+5. **Mutation**: Apply small random perturbations
+6. **Repeat**: Continue until optimal solution found or max iterations reached
 
-```
-pbil_maxsat/
-├── evolution_simulation/     # Main Python package (historical name)
-│   ├── __init__.py          # Package initialization
-│   ├── pbil.py              # Main PBIL algorithm
-│   ├── maxsat_problem.py    # MAXSAT problem handling
-│   └── c_interface.py       # CFFI interface to C code
-├── c_src/                   # Your original C source files
-│   ├── c_helper_functions.c # PBIL core functions
-│   ├── dependencies.c       # CNF parsing and fitness
-│   ├── datatypes.h          # Data structure definitions
-│   ├── dependencies.h       # Function declarations
-│   └── helper_pbil.h        # PBIL function declarations
-├── build_cffi.py           # CFFI build configuration
-├── setup.py                # Package setup
-├── requirements.txt        # Python dependencies
-├── main.py                 # Example usage and demonstrations
-└── README.md               # This file
-```
+## Installation
+
+### Prerequisites
+
+- Python 3.7+
+- GCC compiler (for automatic C compilation)
+- Standard C libraries
+
+### Setup
+
+1. **Clone the repository**:
+   ```bash
+   git clone <your-repo-url>
+   cd evolution_simulation
+   ```
+
+2. **Install Python dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Install the package** (optional):
+   ```bash
+   pip install -e .
+   ```
+
+The C code will be automatically compiled when first used.
 
 ## Quick Start
 
-### 1. Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 2. Build the C Extension
-
-```bash
-pip install -e .
-```
-
-### 3. Run Examples
-
-```bash
-python main.py
-```
-
-## Usage Examples
-
-### Basic PBIL for Random Problem
+### Basic Usage
 
 ```python
-from evolution_simulation import PBIL, MAXSATProblem
+from evolution_simulation.pbil import run_pbil
 
-# Create a random test problem
-problem = MAXSATProblem()
-problem.create_test_problem(n_vars=20, n_clauses=50)
+# Solve a MAXSAT problem
+result = run_pbil('problem.cnf', max_iterations=1000)
 
-# Create PBIL solver
-pbil = PBIL(
-    problem=problem,
+print(f"Solution: {result['best_solution']}")
+print(f"Fitness: {result['fitness']}/{result['max_fitness']}")
+print(f"Success: {result['success']}")
+```
+
+### Advanced Usage
+
+```python
+from evolution_simulation.pbil import PBILWrapper
+
+# Create wrapper instance
+pbil = PBILWrapper()
+
+# Run with custom parameters
+result = pbil.run(
+    cnf_file='problem.cnf',
     pop_size=100,
     learning_rate=0.1,
-    negative_learning_rate=0.075
+    negative_learning_rate=0.075,
+    mutation_probability=0.02,
+    mutation_shift=0.05,
+    max_iterations=1000,
+    print_generations=True
 )
 
-# Run optimization
-solution, fitness = pbil.run(max_generations=1000)
-print(f"Best solution: {pbil.get_solution_string()}")
-print(f"Fitness: {fitness}/{problem.n_clauses} clauses satisfied")
+# Pretty print results
+pbil.print_results(result)
 ```
 
-### Load CNF File
+### Command Line Interface
 
-```python
-# Load MAXSAT problem from CNF file
-problem = MAXSATProblem("your_problem.cnf")
-problem.print_problem_info()
+```bash
+# Basic usage
+python evolution_simulation/pbil.py problem.cnf
 
-# Solve it
-pbil = PBIL(problem)
-solution, fitness = pbil.run()
-
-# Verify solution
-is_valid, unsatisfied = pbil.verify_solution()
-if is_valid:
-    print("✓ All clauses satisfied!")
+# With custom parameters
+python evolution_simulation/pbil.py problem.cnf \
+  --pop-size 200 \
+  --learning-rate 0.15 \
+  --max-iterations 2000 \
+  --print-generations
 ```
 
-### Advanced Configuration
+## API Reference
 
-```python
-pbil = PBIL(
-    problem=problem,
-    pop_size=200,                    # Population size
-    learning_rate=0.15,              # Learning rate (toward best)
-    negative_learning_rate=0.1,      # Negative learning rate (away from worst)
-    mutation_probability=0.02,       # Probability of mutation per bit
-    mutation_shift=0.05              # Amount of mutation
-)
+### PBILWrapper Class
 
-# Run with custom termination
-solution, fitness = pbil.run(
-    max_generations=2000,
-    target_fitness=problem.n_clauses,  # Stop when all clauses satisfied
-    verbose=True
-)
-```
+The main wrapper class providing full control over the PBIL algorithm.
 
-## Performance Features
+#### Methods
 
-### C Backend Integration
+##### `__init__(executable_path=None)`
+Initialize the wrapper. Automatically finds or compiles the C executable.
 
-- **High-speed population generation** - Generate populations from probability vectors
-- **Fast fitness evaluation** - Evaluate MAXSAT fitness using your original C code
-- **Efficient probability vector updates** - Core PBIL operations in C
-- **Automatic fallbacks** - Pure Python implementations when C unavailable
+##### `run(**kwargs)` → `Dict[str, Any]`
+Run the PBIL algorithm with specified parameters.
 
-### Performance Comparison
+**Parameters:**
+- `cnf_file` (str): Path to CNF file containing MAXSAT problem
+- `pop_size` (int, default=100): Population size
+- `learning_rate` (float, default=0.1): Learning rate for probability vector updates
+- `negative_learning_rate` (float, default=0.075): Negative learning rate
+- `mutation_probability` (float, default=0.02): Probability of mutation per bit
+- `mutation_shift` (float, default=0.05): Magnitude of mutation
+- `max_iterations` (int, default=1000): Maximum number of generations
+- `print_generations` (bool, default=False): Print progress during execution
 
-The C backend provides significant speedups:
+**Returns:** Dictionary with results including:
+- `success` (bool): Whether optimal solution was found
+- `best_solution` (List[int]): Best solution found
+- `fitness` (int): Number of satisfied clauses
+- `max_fitness` (int): Total number of clauses
+- `fitness_percentage` (float): Percentage of clauses satisfied
+- `total_generations` (int): Number of generations executed
+- `time_elapsed` (float): Runtime in seconds
+- `best_found_at_generation` (int): Generation where best solution was found
 
-```python
-# Test performance on different problem sizes
-python main.py  # Includes performance benchmarks
-```
+##### `run_multiple(cnf_files, **kwargs)` → `List[Dict[str, Any]]`
+Run PBIL on multiple CNF files with the same parameters.
 
-Typical speedups:
-- **Small problems** (10-20 vars): 2-3x faster
-- **Medium problems** (50-100 vars): 5-10x faster  
-- **Large problems** (200+ vars): 10-20x faster
+##### `print_results(results)`
+Pretty print formatted results.
+
+### Convenience Functions
+
+##### `run_pbil(cnf_file, **kwargs)` → `Dict[str, Any]`
+Quick function to run PBIL with default parameters.
 
 ## CNF File Format
 
-The solver supports standard DIMACS CNF format:
+The wrapper accepts CNF (Conjunctive Normal Form) files in DIMACS format:
 
 ```
 c This is a comment
@@ -151,128 +166,99 @@ p cnf 3 3
 1 2 3 0
 ```
 
-Where:
-- `p cnf [vars] [clauses]` - Problem header
-- Each line is a clause with space-separated literals
-- Negative numbers represent negated variables
-- Each clause ends with `0`
+- Line starting with `c`: Comments
+- Line starting with `p cnf`: Problem definition (variables, clauses)
+- Other lines: Clauses (space-separated literals, 0-terminated)
 
-## Algorithm Parameters
+## Examples
 
-| Parameter | Description | Typical Range | Default |
-|-----------|-------------|---------------|---------|
-| `pop_size` | Population size | 50-500 | 100 |
-| `learning_rate` | Rate of movement toward best solution | 0.05-0.3 | 0.1 |
-| `negative_learning_rate` | Rate of movement away from worst | 0.025-0.2 | 0.075 |
-| `mutation_probability` | Probability of mutating each bit | 0.01-0.1 | 0.02 |
-| `mutation_shift` | Amount of mutation applied | 0.01-0.1 | 0.05 |
-
-## Visualization and Analysis
+### Parameter Tuning
 
 ```python
-# Generate progress plots
-pbil.visualize_progress()
+from evolution_simulation.pbil import PBILWrapper
 
-# Get detailed statistics  
-stats = pbil.get_statistics()
-print(f"Success rate: {stats['success_rate']:.1%}")
-print(f"Probability vector entropy: {stats['prob_vector_entropy']:.3f}")
+wrapper = PBILWrapper()
 
-# Analyze solution
-is_valid, unsatisfied_clauses = pbil.verify_solution()
-```
-
-## Integration with Your Original C Code
-
-This Python wrapper integrates your original PBIL C implementation from [your repository](https://github.com/patrick-callum-oconnell-builder/Population-Based-Incremental-Learning.git):
-
-- **`c_helper_functions.c`** - Core PBIL operations (population generation, probability vector updates)
-- **`dependencies.c`** - CNF file parsing and fitness evaluation
-- **`datatypes.h`** - Problem and solution data structures
-
-The Python interface provides:
-- **Easy parameter tuning** - Experiment with different PBIL settings
-- **Batch processing** - Solve multiple problems efficiently  
-- **Visualization** - Plot convergence and analyze results
-- **Integration** - Combine with other Python ML/optimization tools
-
-## Examples and Benchmarks
-
-Run the comprehensive examples:
-
-```bash
-python main.py
-```
-
-This includes:
-1. **Random problem generation** and solving
-2. **CNF file loading** and processing  
-3. **Performance comparisons** across problem sizes
-4. **Parameter tuning** demonstrations
-
-## Development and Customization
-
-### Adding New Problems
-
-```python
-# Create custom MAXSAT problems
-problem = MAXSATProblem()
-problem.clauses = [
-    [1, -2, 3],     # (x1 ∨ ¬x2 ∨ x3)
-    [-1, 2, -3],    # (¬x1 ∨ x2 ∨ ¬x3)
+# Test different strategies
+strategies = [
+    {"name": "Conservative", "learning_rate": 0.05, "pop_size": 50},
+    {"name": "Balanced", "learning_rate": 0.1, "pop_size": 100},
+    {"name": "Aggressive", "learning_rate": 0.2, "pop_size": 200},
 ]
-problem.n_variables = 3
-problem.n_clauses = 2
+
+for strategy in strategies:
+    name = strategy.pop("name")
+    result = wrapper.run(cnf_file="problem.cnf", **strategy)
+    print(f"{name}: {result['fitness']}/{result['max_fitness']}")
 ```
 
-### Custom Fitness Functions
-
-Extend `MAXSATProblem` to implement different optimization objectives:
+### Batch Processing
 
 ```python
-class CustomProblem(MAXSATProblem):
-    def get_fitness(self, solution):
-        # Custom fitness calculation
-        return your_fitness_function(solution)
+import glob
+from evolution_simulation.pbil import PBILWrapper
+
+wrapper = PBILWrapper()
+cnf_files = glob.glob("problems/*.cnf")
+
+results = wrapper.run_multiple(cnf_files, max_iterations=500)
+
+for result in results:
+    if result['success']:
+        print(f"✅ {result['cnf_file']}: SOLVED")
+    else:
+        print(f"⚠️ {result['cnf_file']}: {result['fitness']}/{result['max_fitness']}")
 ```
 
-### C Extension Development
+## Architecture
 
-1. Modify C functions in `c_src/`
-2. Update function signatures in `build_cffi.py`
-3. Rebuild: `pip install -e .`
+This wrapper is built around your existing C implementation with the following components:
 
-## Citation
+- **C Core** (`c_src/`): Original high-performance PBIL implementation
+- **Python Wrapper** (`evolution_simulation/pbil.py`): Subprocess-based interface
+- **Auto-compilation**: Automatic GCC compilation of C sources
+- **Output Parsing**: Regex-based extraction of results from C program output
 
-If you use this implementation in research, please cite:
+### Project Structure
 
-```bibtex
-@software{pbil_maxsat,
-  title={PBIL MAXSAT Solver with C Backend},
-  author={Your Name},
-  year={2024},
-  url={https://github.com/yourusername/pbil_maxsat}
-}
+```
+evolution_simulation/
+├── c_src/                    # Original C implementation
+│   ├── pbil_c.c             # Main PBIL algorithm
+│   ├── dependencies.c       # CNF parsing and fitness evaluation
+│   ├── c_helper_functions.c # Core PBIL functions
+│   └── *.h                  # Header files
+├── evolution_simulation/     # Python package
+│   ├── pbil.py              # Main wrapper class
+│   └── maxsat_problem.py    # Problem utilities
+├── main.py                  # Demonstration script
+└── sample_problem.cnf       # Example problem
 ```
 
-## License
+## Performance
 
-MIT License - see LICENSE file for details.
+The wrapper calls your original C implementation directly via subprocess, providing:
+
+- **Full C Performance**: No overhead from Python-C integration
+- **Memory Efficiency**: C manages its own memory
+- **Scalability**: Can handle large problems efficiently
+- **Reliability**: Fixed memory management issues (double-free bugs)
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality  
-4. Submit a pull request
+This wrapper preserves the original C implementation while adding Python conveniences. To contribute:
 
-## Support
+1. For C algorithm improvements, modify files in `c_src/`
+2. For Python interface improvements, modify `evolution_simulation/pbil.py`
+3. Ensure all changes maintain backward compatibility
+4. Add tests for new functionality
 
-- **Documentation**: This README and inline code documentation
-- **Examples**: See `main.py` for comprehensive usage examples
-- **Issues**: Report bugs via GitHub issues
-- **Performance**: Use C backend for best performance (`pip install -e .`)
+## License
 
----
+[Add your license information here]
 
-**Performance Note**: For maximum performance, ensure the C extension builds successfully. The Python fallbacks are provided for development and compatibility but are significantly slower for large problems. 
+## Original Implementation
+
+This wrapper is built around the C implementation from: https://github.com/patrick-callum-oconnell-builder/Population-Based-Incremental-Learning
+
+The original README stated: "PBIL.py is no longer used" and "I've since converted it to C for speed." This wrapper brings Python convenience back while preserving that C performance. 

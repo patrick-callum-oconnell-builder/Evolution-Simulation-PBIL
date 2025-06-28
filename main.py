@@ -1,210 +1,156 @@
 #!/usr/bin/env python3
 """
-Main Example Script
+PBIL Wrapper Demonstration
 
-Demonstrates the PBIL algorithm with C backend integration for solving MAXSAT problems.
+This script demonstrates the Python wrapper around the high-performance C implementation
+of Population Based Incremental Learning (PBIL) for solving MAXSAT problems.
+
+The wrapper provides a clean Python interface while leveraging the full speed of the
+original C implementation.
 """
 
+import os
 import time
-import numpy as np
-from evolution_simulation import PBIL, MAXSATProblem, CInterface
+from evolution_simulation.pbil import PBILWrapper, run_pbil
 
 
 def main():
-    """Main PBIL demonstration."""
-    print("PBIL (Population Based Incremental Learning) with C Backend")
+    """Main demonstration of the PBIL wrapper."""
+    print("🧬 PBIL (Population Based Incremental Learning) Wrapper Demo")
     print("=" * 60)
     
-    # Check if C extension is available
-    if CInterface.is_available():
-        print("✓ C extension loaded successfully - high performance mode enabled")
-    else:
-        print("⚠ C extension not available - running in Python fallback mode")
-        print("  To enable C backend, run: pip install -e .")
+    # Check if sample problem exists
+    sample_file = "sample_problem.cnf"
+    if not os.path.exists(sample_file):
+        print(f"❌ Sample file {sample_file} not found!")
+        return
     
+    print(f"📄 Using sample problem: {sample_file}")
     print()
     
-    # Example 1: Create and solve a test problem
-    print("Example 1: Random Test Problem")
-    print("-" * 30)
+    # 1. Simple usage with convenience function
+    print("1️⃣  Simple Usage (Convenience Function)")
+    print("-" * 40)
     
-    # Create a test MAXSAT problem
-    problem = MAXSATProblem()
-    problem.create_test_problem(n_vars=20, n_clauses=50, clause_length=3)
-    problem.print_problem_info()
+    result = run_pbil(sample_file, max_iterations=500, print_generations=False)
+    print(f"✅ Solution found: {result['best_solution']}")
+    print(f"🎯 Fitness: {result['fitness']}/{result['max_fitness']} ({result['fitness_percentage']:.1f}%)")
+    print(f"⏱️  Time: {result['time_elapsed']:.3f} seconds")
+    print()
     
-    # Create PBIL solver
-    pbil = PBIL(
-        problem=problem,
-        pop_size=50,
+    # 2. Using the wrapper class with detailed output
+    print("2️⃣  Wrapper Class with Detailed Output")
+    print("-" * 40)
+    
+    wrapper = PBILWrapper()
+    result = wrapper.run(
+        cnf_file=sample_file,
+        pop_size=100,
         learning_rate=0.1,
         negative_learning_rate=0.075,
         mutation_probability=0.02,
-        mutation_shift=0.05
+        mutation_shift=0.05,
+        max_iterations=1000,
+        print_generations=True
     )
+    wrapper.print_results(result)
+    print()
     
-    # Run the algorithm
-    print("\nRunning PBIL...")
-    start_time = time.time()
+    # 3. Parameter comparison
+    print("3️⃣  Parameter Comparison")
+    print("-" * 40)
     
-    solution, fitness = pbil.run(max_generations=500, verbose=True)
-    
-    end_time = time.time()
-    runtime = end_time - start_time
-    
-    # Show results
-    print(f"\nResults:")
-    print(f"Runtime: {runtime:.3f} seconds")
-    print(f"Best solution: {pbil.get_solution_string()}")
-    print(f"Fitness: {fitness}/{problem.n_clauses} clauses satisfied ({fitness/problem.n_clauses*100:.1f}%)")
-    
-    # Verify solution
-    is_valid, unsatisfied = pbil.verify_solution()
-    if is_valid:
-        print("✓ Solution satisfies all clauses!")
-    else:
-        print(f"⚠ Solution leaves {len(unsatisfied)} clauses unsatisfied")
-    
-    # Show statistics
-    stats = pbil.get_statistics()
-    print(f"\nAlgorithm Statistics:")
-    print(f"  Final generation: {stats['generation']}")
-    print(f"  Best found at generation: {stats['best_generation']}")
-    print(f"  Success rate: {stats['success_rate']:.1%}")
-    print(f"  Probability vector entropy: {stats['prob_vector_entropy']:.3f}")
-    
-    # Optional visualization
-    try:
-        print("\nGenerating visualization...")
-        pbil.visualize_progress()
-    except Exception as e:
-        print(f"Visualization not available: {e}")
-    
-    print("\n" + "="*60)
-
-
-def load_cnf_example():
-    """Example of loading and solving a CNF file."""
-    print("Example 2: Loading CNF File")
-    print("-" * 30)
-    
-    # Create a sample CNF file first
-    sample_cnf = "sample_problem.cnf"
-    create_sample_cnf(sample_cnf)
-    
-    try:
-        # Load the CNF file
-        problem = MAXSATProblem(sample_cnf)
-        problem.print_problem_info()
-        
-        # Solve it
-        pbil = PBIL(problem, pop_size=30)
-        solution, fitness = pbil.run(max_generations=200, verbose=False)
-        
-        print(f"Solution: {pbil.get_solution_string()}")
-        print(f"Satisfied: {fitness}/{problem.n_clauses} clauses")
-        
-    except Exception as e:
-        print(f"Error loading CNF file: {e}")
-
-
-def create_sample_cnf(filename: str):
-    """Create a sample CNF file for demonstration."""
-    # Simple 3-SAT problem: (x1 ∨ ¬x2 ∨ x3) ∧ (¬x1 ∨ x2 ∨ ¬x3) ∧ (x1 ∨ x2 ∨ x3)
-    with open(filename, 'w') as f:
-        f.write("c Sample 3-SAT problem\n")
-        f.write("c Variables: x1, x2, x3\n")
-        f.write("p cnf 3 3\n")
-        f.write("1 -2 3 0\n")  # (x1 ∨ ¬x2 ∨ x3)
-        f.write("-1 2 -3 0\n") # (¬x1 ∨ x2 ∨ ¬x3)
-        f.write("1 2 3 0\n")   # (x1 ∨ x2 ∨ x3)
-    
-    print(f"Created sample CNF file: {filename}")
-
-
-def performance_comparison():
-    """Compare performance between different problem sizes."""
-    print("Example 3: Performance Comparison")
-    print("-" * 30)
-    
-    problem_sizes = [
-        (10, 25),   # Small
-        (20, 50),   # Medium
-        (30, 100),  # Large
-    ]
-    
-    for n_vars, n_clauses in problem_sizes:
-        print(f"\nTesting problem: {n_vars} variables, {n_clauses} clauses")
-        
-        # Create problem
-        problem = MAXSATProblem()
-        problem.create_test_problem(n_vars, n_clauses)
-        
-        # Run PBIL
-        pbil = PBIL(problem, pop_size=50)
-        
-        start_time = time.time()
-        solution, fitness = pbil.run(max_generations=200, verbose=False)
-        runtime = time.time() - start_time
-        
-        success_rate = fitness / problem.n_clauses
-        print(f"  Runtime: {runtime:.3f}s")
-        print(f"  Result: {fitness}/{n_clauses} clauses ({success_rate:.1%})")
-        print(f"  Performance: {pbil.generation * pbil.pop_size / runtime:.0f} evaluations/sec")
-
-
-def parameter_tuning_example():
-    """Example of testing different PBIL parameters."""
-    print("Example 4: Parameter Tuning")
-    print("-" * 30)
-    
-    # Create a fixed test problem
-    problem = MAXSATProblem()
-    problem.create_test_problem(15, 40)
-    
-    # Test different parameter combinations
     parameter_sets = [
-        {"learning_rate": 0.05, "negative_learning_rate": 0.025, "name": "Conservative"},
-        {"learning_rate": 0.1, "negative_learning_rate": 0.075, "name": "Standard"},
-        {"learning_rate": 0.2, "negative_learning_rate": 0.15, "name": "Aggressive"},
+        {"name": "Conservative", "pop_size": 50, "learning_rate": 0.05, "mutation_probability": 0.01},
+        {"name": "Balanced", "pop_size": 100, "learning_rate": 0.1, "mutation_probability": 0.02},
+        {"name": "Aggressive", "pop_size": 200, "learning_rate": 0.2, "mutation_probability": 0.05},
     ]
     
     results = []
-    
     for params in parameter_sets:
         name = params.pop("name")
-        print(f"\nTesting {name} parameters: {params}")
-        
-        pbil = PBIL(problem, pop_size=50, **params)
+        print(f"🔬 Testing {name} parameters...")
         
         start_time = time.time()
-        solution, fitness = pbil.run(max_generations=300, verbose=False)
-        runtime = time.time() - start_time
+        result = wrapper.run(cnf_file=sample_file, max_iterations=500, **params)
+        end_time = time.time()
         
-        success_rate = fitness / problem.n_clauses
-        results.append((name, fitness, success_rate, runtime, pbil.generation))
-        
-        print(f"  Result: {fitness}/{problem.n_clauses} ({success_rate:.1%}) in {runtime:.3f}s")
+        results.append({
+            "name": name,
+            "success": result.get('success', False),
+            "fitness": result.get('fitness', 0),
+            "max_fitness": result.get('max_fitness', 0),
+            "generations": result.get('total_generations', 0),
+            "time": end_time - start_time,
+            "solution": result.get('best_solution', [])
+        })
     
-    # Summary
-    print(f"\nParameter Comparison Summary:")
-    print(f"{'Method':<12} {'Fitness':<8} {'Success':<8} {'Time':<8} {'Gens':<8}")
-    print("-" * 50)
-    for name, fitness, success, runtime, gens in results:
-        print(f"{name:<12} {fitness:<8} {success:<7.1%} {runtime:<7.3f}s {gens:<8}")
+    print("\n📊 Results Summary:")
+    print(f"{'Strategy':<12} {'Success':<8} {'Fitness':<10} {'Generations':<12} {'Time (s)':<10}")
+    print("-" * 60)
+    
+    for r in results:
+        success_icon = "✅" if r['success'] else "❌"
+        fitness_str = f"{r['fitness']}/{r['max_fitness']}"
+        print(f"{r['name']:<12} {success_icon:<8} {fitness_str:<10} {r['generations']:<12} {r['time']:.3f}")
+    
+    print()
+    
+    # 4. Demonstrate multiple file processing (if more files exist)
+    print("4️⃣  Multiple File Processing")
+    print("-" * 40)
+    
+    cnf_files = [f for f in os.listdir('.') if f.endswith('.cnf')]
+    if len(cnf_files) > 1:
+        print(f"📁 Found {len(cnf_files)} CNF files:")
+        
+        results = wrapper.run_multiple(cnf_files[:3], max_iterations=200)  # Process up to 3 files
+        
+        for result in results:
+            filename = os.path.basename(result['cnf_file'])
+            if 'error' in result:
+                print(f"  ❌ {filename}: {result['error']}")
+            else:
+                success_icon = "✅" if result.get('success') else "⚠️"
+                fitness = result.get('fitness', 0)
+                max_fitness = result.get('max_fitness', 0)
+                print(f"  {success_icon} {filename}: {fitness}/{max_fitness}")
+    else:
+        print("📁 Only one CNF file found. To test multiple file processing,")
+        print("   add more .cnf files to the current directory.")
+    
+    print()
+    
+    # 5. Command line interface demonstration
+    print("5️⃣  Command Line Interface")
+    print("-" * 40)
+    print("You can also use the wrapper from the command line:")
+    print()
+    print("  # Basic usage:")
+    print(f"  python evolution_simulation/pbil.py {sample_file}")
+    print()
+    print("  # With custom parameters:")
+    print(f"  python evolution_simulation/pbil.py {sample_file} \\")
+    print("    --pop-size 200 --learning-rate 0.15 --max-iterations 2000 --print-generations")
+    print()
+    
+    # 6. Performance note
+    print("6️⃣  Performance Notes")
+    print("-" * 40)
+    print("🚀 This wrapper calls your original C implementation directly,")
+    print("   providing the full performance of the native C code while")
+    print("   offering a convenient Python interface.")
+    print()
+    print("🔧 The wrapper handles:")
+    print("   • Automatic compilation of C code")
+    print("   • Parameter validation")
+    print("   • Output parsing and structuring")
+    print("   • Error handling and reporting")
+    print("   • Memory management (fixed double-free issue)")
+    print()
+    
+    print("✨ Demo completed successfully!")
 
 
 if __name__ == "__main__":
-    main()
-    
-    # Uncomment to run additional examples
-    print("\n")
-    load_cnf_example()
-    
-    print("\n")
-    performance_comparison()
-    
-    print("\n")
-    parameter_tuning_example()
-    
-    print("\nAll examples completed!") 
+    main() 

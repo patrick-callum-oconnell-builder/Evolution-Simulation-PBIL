@@ -1,12 +1,12 @@
 """
-PBIL (Population Based Incremental Learning) Package
+Evolution Simulation Package
 
-A Python package for PBIL optimization with high-performance C backend for MAXSAT problems.
+A Python wrapper around high-performance C implementations of evolutionary algorithms,
+specifically Population Based Incremental Learning (PBIL) for solving MAXSAT problems.
 """
 
-from .pbil import PBIL
+from .pbil import PBILWrapper, run_pbil
 from .maxsat_problem import MAXSATProblem
-from .c_interface import CInterface
 
-__version__ = "0.1.0"
-__all__ = ["PBIL", "MAXSATProblem", "CInterface"] 
+__version__ = "1.0.0"
+__all__ = ["PBILWrapper", "run_pbil", "MAXSATProblem"] 

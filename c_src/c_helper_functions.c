@@ -116,7 +116,7 @@ int* findWorst(int** current_population, int pop_size, int length, int max_fitne
 
   return current_population[worst_individual];
 
-}g
+}
 
 
 /* Mutation function that takes in a vector of doubles

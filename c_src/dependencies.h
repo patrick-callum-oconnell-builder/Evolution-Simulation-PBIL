@@ -7,5 +7,6 @@
 // Gets the fitness of a problem!
 int get_fitness(int* vector, problem* prob);
 problem read_cnf(const char* filename);
+void free_problem(problem prob);
 
 #endif
