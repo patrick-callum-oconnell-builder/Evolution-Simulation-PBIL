@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   TextField,
   Slider,
@@ -12,11 +12,34 @@ import {
   Tooltip,
   IconButton,
   Button,
-  Divider
+  Divider,
+  ListSubheader,
+  Chip
 } from '@mui/material';
-import { Info, PlayArrow, Stop } from '@mui/icons-material';
+import { Info, PlayArrow, Stop, Psychology, Speed, LocalFireDepartment } from '@mui/icons-material';
 
 const ParameterPanel = ({ config, onChange, disabled, onStart, onStop, isRunning, isConnected }) => {
+  const [cnfFiles, setCnfFiles] = useState([]);
+  const [loadingFiles, setLoadingFiles] = useState(true);
+
+  // Fetch available CNF files
+  useEffect(() => {
+    const fetchCnfFiles = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/api/cnf-files');
+        const data = await response.json();
+        setCnfFiles(data.files || []);
+      } catch (error) {
+        console.error('Failed to fetch CNF files:', error);
+        setCnfFiles([]);
+      } finally {
+        setLoadingFiles(false);
+      }
+    };
+
+    fetchCnfFiles();
+  }, []);
+
   const handleChange = (field) => (event) => {
     const value = event.target.value;
     onChange({
@@ -30,6 +53,20 @@ const ParameterPanel = ({ config, onChange, disabled, onStart, onStop, isRunning
       ...config,
       [field]: newValue
     });
+  };
+
+  // Get difficulty level and icon for CNF files
+  const getDifficultyInfo = (fileName, size) => {
+    if (fileName.includes('extreme') || fileName.includes('massive')) {
+      return { level: 'Extreme', icon: <LocalFireDepartment color="error" fontSize="small" />, color: 'error' };
+    } else if (fileName.includes('graph_coloring_25') || size > 3000) {
+      return { level: 'Very Hard', icon: <LocalFireDepartment color="warning" fontSize="small" />, color: 'warning' };
+    } else if (fileName.includes('30') || fileName.includes('graph_coloring')) {
+      return { level: 'Hard', icon: <Speed color="info" fontSize="small" />, color: 'info' };
+    } else if (fileName.includes('20') || fileName === 'sample_problem.cnf') {
+      return { level: 'Medium', icon: <Psychology color="success" fontSize="small" />, color: 'success' };
+    }
+    return { level: 'Unknown', icon: <Psychology fontSize="small" />, color: 'default' };
   };
 
   const parameterInfo = {
@@ -107,15 +144,60 @@ const ParameterPanel = ({ config, onChange, disabled, onStart, onStop, isRunning
 
       {/* CNF File Selection */}
       <FormControl fullWidth sx={{ mb: 3 }}>
-        <InputLabel>CNF File</InputLabel>
+        <InputLabel>MAXSAT Problem</InputLabel>
         <Select
           value={config.cnf_file}
           onChange={handleChange('cnf_file')}
-          disabled={disabled}
-          label="CNF File"
+          disabled={disabled || loadingFiles}
+          label="MAXSAT Problem"
         >
-          <MenuItem value="sample_problem.cnf">sample_problem.cnf</MenuItem>
+          {loadingFiles ? (
+            <MenuItem disabled>Loading problems...</MenuItem>
+          ) : (
+            (() => {
+              const grouped = cnfFiles.reduce((acc, file) => {
+                if (!acc[file.category]) acc[file.category] = [];
+                acc[file.category].push(file);
+                return acc;
+              }, {});
+              
+              return Object.entries(grouped).map(([category, files]) => [
+                <ListSubheader key={category} sx={{ bgcolor: 'background.paper' }}>
+                  {category}
+                </ListSubheader>,
+                ...files.map(file => {
+                  const difficulty = getDifficultyInfo(file.name, file.size);
+                  return (
+                    <MenuItem key={file.path} value={file.path}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1 }}>
+                        {difficulty.icon}
+                        <Typography variant="body2" sx={{ flexGrow: 1, fontSize: '0.85rem' }}>
+                          {file.name.replace('.cnf', '')}
+                        </Typography>
+                        <Chip 
+                          label={difficulty.level} 
+                          size="small" 
+                          color={difficulty.color}
+                          sx={{ height: 20, fontSize: '0.7rem' }}
+                        />
+                      </Box>
+                    </MenuItem>
+                  );
+                })
+              ]).flat();
+            })()
+          )}
         </Select>
+        {config.cnf_file && !loadingFiles && (
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+            {(() => {
+              const file = cnfFiles.find(f => f.path === config.cnf_file);
+              if (!file) return '';
+              const difficulty = getDifficultyInfo(file.name, file.size);
+              return `${difficulty.level} difficulty • ${(file.size / 1024).toFixed(1)}KB`;
+            })()}
+          </Typography>
+        )}
       </FormControl>
 
       {/* Population Size */}

@@ -340,12 +340,28 @@ async def list_cnf_files():
     """List available CNF files."""
     cnf_files = []
     
+    # Look for CNF files in root directory
     for file_path in Path(".").glob("*.cnf"):
         cnf_files.append({
             "name": file_path.name,
             "path": str(file_path),
-            "size": file_path.stat().st_size
+            "size": file_path.stat().st_size,
+            "category": "Main"
         })
+    
+    # Look for CNF files in benchmark_problems/custom/
+    custom_dir = Path("benchmark_problems/custom")
+    if custom_dir.exists():
+        for file_path in custom_dir.glob("*.cnf"):
+            cnf_files.append({
+                "name": file_path.name,
+                "path": str(file_path),
+                "size": file_path.stat().st_size,
+                "category": "Custom Benchmarks"
+            })
+    
+    # Sort files by category and then by name
+    cnf_files.sort(key=lambda x: (x["category"], x["name"]))
     
     return {"files": cnf_files}
 
