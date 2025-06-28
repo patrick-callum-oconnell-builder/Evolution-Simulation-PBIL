@@ -244,13 +244,27 @@ function App() {
             </Grid>
 
             {/* Fitness Chart */}
-            <Grid item xs={12} md={8}>
+            <Grid item xs={12} md={5}>
               <Paper sx={{ p: 2 }}>
                 <Typography variant="h6" gutterBottom>
                   <Timeline sx={{ mr: 1, verticalAlign: 'middle' }} />
                   Fitness Evolution
                 </Typography>
                 <FitnessChart data={pbilData.fitnessHistory} />
+              </Paper>
+            </Grid>
+
+            {/* Current Solution - Moved up here */}
+            <Grid item xs={12} md={3}>
+              <Paper sx={{ p: 2, height: 'fit-content' }}>
+                <Typography variant="h6" gutterBottom>
+                  Current Best Solution
+                </Typography>
+                <SolutionDisplay 
+                  solution={pbilData.bestSolution}
+                  fitness={pbilData.currentFitness}
+                  maxFitness={pbilData.maxFitness}
+                />
               </Paper>
             </Grid>
 
@@ -262,20 +276,6 @@ function App() {
                   Probability Vector Evolution
                 </Typography>
                 <ProbabilityHeatmap data={pbilData.probabilityHistory} />
-              </Paper>
-            </Grid>
-
-            {/* Current Solution */}
-            <Grid item xs={12} md={4}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>
-                  Current Best Solution
-                </Typography>
-                <SolutionDisplay 
-                  solution={pbilData.bestSolution}
-                  fitness={pbilData.currentFitness}
-                  maxFitness={pbilData.maxFitness}
-                />
               </Paper>
             </Grid>
           </Grid>
