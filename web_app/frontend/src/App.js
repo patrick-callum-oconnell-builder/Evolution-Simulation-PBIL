@@ -115,7 +115,10 @@ function App() {
           setPbilData(prev => ({ 
             ...prev, 
             isRunning: false,
-            timeElapsed: finalData.time_elapsed || 0
+            timeElapsed: finalData.time_elapsed || 0,
+            currentFitness: finalData.fitness || prev.currentFitness,
+            maxFitness: finalData.max_fitness || prev.maxFitness,
+            bestSolution: finalData.best_solution || prev.bestSolution
           }));
           setNotification({
             open: true,

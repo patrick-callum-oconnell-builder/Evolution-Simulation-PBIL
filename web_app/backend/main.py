@@ -114,17 +114,29 @@ class RealtimePBILWrapper(PBILWrapper):
                 universal_newlines=True
             )
             
-            # Stream output line by line
+            # Collect all output for final parsing
+            all_output_lines = []
             generation_data = {}
             current_gen = 0
+            problem_info = {}  # Store problem info for fitness calculation
             
             async for line in self._stream_output(process):
                 if not self.is_running:
                     process.terminate()
                     break
-                    
+                
+                # Store all lines for final parsing
+                all_output_lines.append(line)
+                
+                # Extract problem info if available
+                import re
+                problem_match = re.search(r'Results for problem .* \((\d+) variables, (\d+) clauses\)', line)
+                if problem_match:
+                    problem_info['n_variables'] = int(problem_match.group(1))
+                    problem_info['n_clauses'] = int(problem_match.group(2))
+                
                 # Parse line for PBIL data
-                update = self._parse_line(line, generation_data, current_gen)
+                update = self._parse_line(line, generation_data, current_gen, problem_info)
                 if update:
                     await websocket.send_json({
                         "type": "progress",
@@ -133,12 +145,17 @@ class RealtimePBILWrapper(PBILWrapper):
                     if update.generation > current_gen:
                         current_gen = update.generation
             
-            # Wait for process completion
+            # Wait for process completion and get any remaining output
             stdout, stderr = process.communicate()
             
+            # Combine streamed output with any remaining output
+            complete_output = '\n'.join(all_output_lines)
+            if stdout.strip():
+                complete_output += '\n' + stdout
+            
             if process.returncode == 0:
-                # Parse final results
-                final_result = self._parse_output(stdout, config.cnf_file)
+                # Parse final results using parent class method with complete output
+                final_result = self._parse_output(complete_output, config.cnf_file)
                 await websocket.send_json({
                     "type": "complete",
                     "data": final_result
@@ -165,7 +182,7 @@ class RealtimePBILWrapper(PBILWrapper):
             yield line.strip()
             await asyncio.sleep(0.01)  # Small delay to prevent overwhelming
     
-    def _parse_line(self, line: str, gen_data: dict, current_gen: int) -> Optional[PBILProgress]:
+    def _parse_line(self, line: str, gen_data: dict, current_gen: int, problem_info: dict) -> Optional[PBILProgress]:
         """Parse a single line of output for generation data."""
         import re
         
@@ -197,10 +214,16 @@ class RealtimePBILWrapper(PBILWrapper):
             
             # If we have all data for this generation, create progress update
             if all(key in gen_data for key in ['generation', 'best_individual', 'probability_vector']):
+                # Calculate actual MAXSAT fitness (this is simplified - we don't have clauses info here)
+                # For now, use a placeholder that will be corrected in the final result
+                best_individual = gen_data['best_individual']
+                fitness_estimate = len(best_individual)  # Placeholder
+                max_fitness_estimate = problem_info.get('n_clauses', len(best_individual))
+                
                 progress = PBILProgress(
                     generation=gen_data['generation'],
-                    best_fitness=sum(gen_data['best_individual']),  # Simplified fitness
-                    max_fitness=len(gen_data['best_individual']),   # Placeholder
+                    best_fitness=fitness_estimate,
+                    max_fitness=max_fitness_estimate,
                     best_individual=gen_data['best_individual'],
                     worst_individual=gen_data.get('worst_individual', []),
                     probability_vector=gen_data['probability_vector']
@@ -208,17 +231,10 @@ class RealtimePBILWrapper(PBILWrapper):
                 gen_data.clear()  # Reset for next generation
                 return progress
         
-        # Check for completion
-        if "Reached max fitness" in line:
-            return PBILProgress(
-                generation=current_gen,
-                best_fitness=0,
-                max_fitness=0,
-                best_individual=[],
-                worst_individual=[],
-                probability_vector=[],
-                is_complete=True
-            )
+        # Check for completion message
+        if "Reached max fitness" in line or "Algorithm completed successfully" in line:
+            # Don't return anything here - let the final parsing handle it
+            pass
         
         return None
     
