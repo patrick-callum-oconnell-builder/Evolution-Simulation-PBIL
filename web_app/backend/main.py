@@ -120,6 +120,20 @@ class RealtimePBILWrapper(PBILWrapper):
             current_gen = 0
             problem_info = {'cnf_file': config.cnf_file}  # Store problem info for fitness calculation
             
+            # Read CNF file to get correct number of clauses upfront
+            try:
+                with open(config.cnf_file, 'r') as f:
+                    for line in f:
+                        if line.startswith('p cnf'):
+                            parts = line.strip().split()
+                            if len(parts) >= 4:
+                                problem_info['n_variables'] = int(parts[2])
+                                problem_info['n_clauses'] = int(parts[3])
+                                break
+            except Exception as e:
+                print(f"Warning: Could not read CNF file header: {e}")
+                problem_info['n_clauses'] = 85  # Fallback
+            
             async for line in self._stream_output(process):
                 if not self.is_running:
                     process.terminate()
@@ -217,7 +231,7 @@ class RealtimePBILWrapper(PBILWrapper):
                 # Calculate actual MAXSAT fitness by evaluating the individual
                 best_individual = gen_data['best_individual']
                 fitness_estimate = self._evaluate_maxsat_fitness(best_individual, problem_info.get('cnf_file'))
-                max_fitness_estimate = problem_info.get('n_clauses', 85)  # Default to 85 for our sample problem
+                max_fitness_estimate = problem_info.get('n_clauses', 215)  # Use correct problem size
                 
                 # Check if optimal solution found
                 is_optimal = fitness_estimate >= max_fitness_estimate
